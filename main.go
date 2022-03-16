@@ -1,23 +1,25 @@
 package main
 
 import (
-		tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-		"os"
-		"fmt"
-		"log"
-		"math/rand"
-		"strings"
+	"errors"
+	"fmt"
+	"log"
+	"math/rand"
+	"os"
+	"strings"
+
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-type candidate struct {
+type Candidate struct {
 	text string
 	note string
 }
 
-type selection struct {
+type Selection struct {
 	text string
 	note string
-	idx int
+	idx  int
 }
 
 func main() {
@@ -40,14 +42,25 @@ func main() {
 	updates := bot.GetUpdatesChan(u)
 
 	for update := range updates {
+		if update.Message == nil {
+			continue
+		}
 		if update.Message.IsCommand() {
 			switch update.Message.Command() {
 
+			case "saysome":
+				bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, saysome()))
 			case "vs":
 				candidates, err := textIntoCandidates(update.Message.CommandArguments())
+
+				if err != nil {
+					bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "Usage /vs sth vs sth"))
+					continue
+				}
+
 				choice := chooseOne(candidates)
-				 
-				bot.Send(generateAnswerWithChoice(choice))
+
+				bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, generateAnswerWithChoice(choice)))
 			}
 		}
 
@@ -57,20 +70,60 @@ func main() {
 	}
 }
 
-func textIntoCandidates(text string) ([]candidate, error) {
-		
-	return nil, nil
+func saysome() string {
+	i := rand.Intn(5)
+
+	switch i {
+	case 0:
+		return "뭐.. 쯥.."
+	case 1:
+		return "ㅎㅎ"
+	case 2:
+		return ".. 딱히 ㅎㅎ"
+	case 3:
+		return "어 그랴"
+	case 4:
+		return "^.^"
+	}
+
+	return "ㅇㅇ"
 }
 
-func chooseOne(candidates []candidate) selection {}
+func textIntoCandidates(text string) ([]Candidate, error) {
+	chunks := strings.Split(text, "vs")
 
-func generateAnswerWithChoice(choice selection) {
-	switch rand.Intn(3) {
-	case 0:
-		return fmt.Sprintf("쉽네, \"%s\" 이지. no doubt", selection.text)
-	case 1:
-		return fmt.Sprintf("Just, \"%s\"", selection.text)
-	case 2:
-		return fmt.Sprintf("한번만 말한다. \"%s\" 가 답이다.", selection.text)
+	if len(chunks) <= 1 {
+		return nil, errors.New("no delimiter")
 	}
+
+	var candidates []Candidate
+
+	for _, c := range chunks {
+		candidates = append(candidates, Candidate{text: c})
+	}
+
+	return candidates, nil
+}
+
+func chooseOne(candidates []Candidate) Selection {
+	i := rand.Intn(len(candidates))
+
+	return Selection{
+		text: strings.TrimSpace(candidates[i].text),
+		idx:  i,
+	}
+}
+
+func generateAnswerWithChoice(choice Selection) string {
+	switch rand.Intn(3) {
+
+	case 0:
+		return fmt.Sprintf("\"%s\"로 가시죠. no doubt", choice.text)
+	case 1:
+		return fmt.Sprintf("Just, \"%s\"", choice.text)
+	case 2:
+		return fmt.Sprintf("한번만 말한다. \"%s\" 가 답이다.", choice.text)
+	}
+
+	return "Nothing to say"
 }
